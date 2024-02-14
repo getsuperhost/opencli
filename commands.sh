@@ -5,7 +5,7 @@
 # Usage: opencli commands
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 15.11.2023
+# Last Modified: 14.02.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -42,52 +42,46 @@ GREEN='\033[0;32m'
 # ANSI escape code to reset color
 RESET='\033[0m'
 
+# Loop through all Python scripts in the directory and its subdirectories
+find "$SCRIPTS_DIR" -type f -name "*.py" | while read -r script; do
+    # Get the script name without the directory and extension
+    script_name=$(basename "$script" | sed 's/\.py$//')
 
-# Loop through all scripts in the directory and its subdirectories
-find "$SCRIPTS_DIR" -type f -executable ! -name "opencli.sh" ! -name "install" ! -name "opencli" | while read -r script; do
-    # Check if the script is executable
-    if [ -x "$script" ]; then
-        # Get the script name without the directory and extension
-        script_name=$(basename "$script" | sed 's/\.sh$//')
+    # Get the directory name without the full path
+    dir_name=$(dirname "$script" | sed 's:.*/::')
 
-        # Get the directory name without the full path
-        dir_name=$(dirname "$script" | sed 's:.*/::')
-
-        if [ "$dir_name" = "scripts" ]; then
-            dir_name=""
-        else
-            dir_name="${dir_name}-"
-        fi
-
-        # Combine directory name and script name for the alias
-        alias_name="${dir_name}${script_name}"
-
-        # Add the "opencli " prefix to the alias
-        full_alias="opencli $alias_name"
-
-	# Extract the description from the script if available
-	description=$(grep -E "^# Description:" "$script" | sed 's/^# Description: //')
-
-	# Extract the usage from the script if available
-	usage=$(grep -E "^# Usage:" "$script" | sed 's/^# Usage: //')
- 
-	# Print a message indicating the alias creation
-	echo -e "${GREEN}$full_alias${RESET}` #for $script`"
-
-	# Display the description only if it is found
-	if [ -n "$description" ]; then
-	echo "Description: $description"
-	fi
-	if [ -n "$usage" ]; then
-	echo "Usage: $usage"
-	fi
-	#echo ""
-	echo "------------------------"
-	#echo ""
-
-	# Add the alias and description to the alias file
-	echo "$full_alias" >> "$ALIAS_FILE"
+    if [ "$dir_name" = "scripts" ]; then
+        dir_name=""
+    else
+        dir_name="${dir_name}-"
     fi
+
+    # Combine directory name and script name for the alias
+    alias_name="${dir_name}${script_name}"
+
+    # Add the "opencli " prefix to the alias
+    full_alias="opencli $alias_name"
+
+    # Extract the description from the script if available
+    description=$(grep -E "^# Description:" "$script" | sed 's/^# Description: //')
+
+    # Extract the usage from the script if available
+    usage=$(grep -E "^# Usage:" "$script" | sed 's/^# Usage: //')
+
+    # Print a message indicating the alias creation
+    echo -e "${GREEN}$full_alias${RESET}"
+
+    # Display the description only if it is found
+    if [ -n "$description" ]; then
+        echo "Description: $description"
+    fi
+    if [ -n "$usage" ]; then
+        echo "Usage: $usage"
+    fi
+    echo "------------------------"
+
+    # Add the alias and description to the alias file
+    echo "$full_alias" >> "$ALIAS_FILE"
 done
 
 # Sort the aliases in the file by names
