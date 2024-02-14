@@ -13,7 +13,7 @@ def run_command(module_name, *args):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python opencli.py <module_name> <arg1> [arg2] [arg3] ...")
+        print("Usage: opencli <script> <arg1> [arg2] [arg3] ...")
     else:
         command = sys.argv[1]
         arguments = sys.argv[2:]
