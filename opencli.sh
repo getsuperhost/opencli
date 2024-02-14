@@ -43,21 +43,19 @@ binary_name="$1"
 # Replace '-' with '/' in the binary name
 binary_command="${binary_name//-//}"
 
-# Build the full path to the binary
-binary_path="$script_dir/$binary_command"
-
-# Check if the binary exists and is executable
-if [ -x "$binary_path" ]; then
-  # Shift to remove the binary name from the arguments
+# Check if the Python script file exists in the specified directory
+script_path="$script_dir/$binary_command.py"
+if [ -f "$script_path" ]; then
+  # Shift to remove the script name from the arguments
   shift
 
-  # Execute the binary with additional arguments if provided
+  # Execute the Python script with additional arguments if provided
   if [ "$#" -gt 0 ]; then
-    "$binary_path" "$@"
+    python3 "$script_path" "$@"
   else
-    "$binary_path"
+    python3 "$script_path"
   fi
 else
-  echo "Error: Command '$binary_command' not found or not executable in '$script_dir'"
+  echo "Error: Script '$script_name' not found in '$script_dir'"
   exit 1
 fi
