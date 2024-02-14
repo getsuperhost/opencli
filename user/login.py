@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env python3
 ################################################################################
-# Script Name: user/login.sh
-# Description: Login as the root user inside a users docker container.
+# Script Name: user_login.py
+# Description: Login as the root user inside a user's docker container.
 # Usage: opencli user-login <USERNAME>
 # Author: Stefan Pejcic
 # Created: 21.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 14.02.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,12 +28,15 @@
 # THE SOFTWARE.
 ################################################################################
 
+import sys
+import subprocess
+
 # Check if the correct number of command-line arguments is provided
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <username>"
-    exit 1
-fi
+if len(sys.argv) != 2:
+    print("Usage: opencli user-login <username>".format(sys.argv[0]))
+    sys.exit(1)
 
-username="$1"
+username = sys.argv[1]
 
-docker exec -it $username /bin/bash
+# Run the docker command using subprocess
+subprocess.run(["docker", "exec", "-it", username, "/bin/bash"])
