@@ -1,12 +1,13 @@
-#!/bin/bash
+#!/usr/bin/python3
+
 ################################################################################
-# Script Name: update.sh
+# Script Name: update.py
 # Description: Checks if updates are enabled and then if an update is available.
 # Usage: opencli update
 #        opencli update --force
 # Author: Stefan Pejcic
 # Created: 10.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 21.02.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -29,106 +30,100 @@
 # THE SOFTWARE.
 ################################################################################
 
+
+import subprocess
+import json
+import sys
+import os
+import tempfile
+
+
 # Function to check if an update is needed
-check_update() {
-    local force_update=false
+def check_update():
+    force_update = False
 
     # Check if the '--force' flag is provided
-    if [[ "$1" == "--force" ]]; then
-        force_update=true
-        echo "Forcing updates, ignoring autopatch and autoupdate settings."
-    fi
+    if "--force" in sys.argv:
+        force_update = True
+        print("Forcing updates, ignoring autopatch and autoupdate settings.")
 
     # Read the user settings from /usr/local/panel/conf/panel.config
-    local autopatch
-    local autoupdate
-
-    if [ "$force_update" = true ]; then
+    if force_update:
         # When the '--force' flag is provided, set autopatch and autoupdate to "on"
-        autopatch="on"
-        autoupdate="on"
-    else
-        autopatch=$(awk -F= '/^autopatch=/{print $2}' /usr/local/panel/conf/panel.config)
-        autoupdate=$(awk -F= '/^autoupdate=/{print $2}' /usr/local/panel/conf/panel.config)
-    fi
+        autopatch = "on"
+        autoupdate = "on"
+    else:
+        with open("/usr/local/panel/conf/panel.config", "r") as config_file:
+            for line in config_file:
+                if line.startswith("autopatch="):
+                    autopatch = line.strip().split("=")[1]
+                elif line.startswith("autoupdate="):
+                    autoupdate = line.strip().split("=")[1]
 
     # Only proceed if autopatch or autoupdate is set to "on"
-    if [ "$autopatch" = "on" ] || [ "$autoupdate" = "on" ] || [ "$force_update" = true ]; then
-        # Run the update_check.sh script to get the update status
-        local update_status=$(opencli update_check)
+    if autopatch == "on" or autoupdate == "on" or force_update:
+        # Run the update_check.py script to get the update status
+        update_status = subprocess.run(["opencli", "update_check"], capture_output=True, text=True).stdout.strip()
 
         # Extract the local and remote version from the update status
-        local local_version=$(echo "$update_status" | jq -r '.installed_version')
-        local remote_version=$(echo "$update_status" | jq -r '.latest_version')
+        update_status = json.loads(update_status)
+        local_version = update_status.get("installed_version")
+        remote_version = update_status.get("latest_version")
 
-        # Check if autoupdate is "no" and not forcing the update
-        if [ "$autoupdate" = "off" ] && [ "$local_version" \< "$remote_version" ] && [ "$force_update" = false ]; then
-            echo "Update is available, autopatch will be installed."
+        # Check if remote_version is available
+        if remote_version is None:
+            print("No update available.")
+            return
+
+        # Compare local and remote versions
+        if local_version < remote_version or force_update:
+            print("Update is available and will be automatically installed.")
 
             # Incrementally update from local_version to remote_version
-            while [ "$(compare_versions "$local_version" "$remote_version")" = -1 ]; do
-                local_version=$(get_next_version "$local_version")
-                echo "Updating to version $local_version"
-                wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
-            done
+            while local_version < remote_version:
+                local_version = get_next_version(local_version)
+                print(f"Updating to version {local_version}")
+            # Fetch the script content
+            script_content = subprocess.run(f"wget -q -O - https://update.openpanel.co/versions/{local_version}", shell=True, capture_output=True, text=True).stdout
+            
+            # Create a temporary file and write the script content
+            with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
+                temp_file.write(script_content)
+                temp_file_path = temp_file.name
+            
+            # Execute the script
+            subprocess.run(f"bash {temp_file_path}", shell=True)
 
-
-        else
-            # If autoupdate is "on" or force_update is true, check if local_version is less than remote_version
-            if [ "$local_version" \< "$remote_version" ] || [ "$force_update" = true ]; then
-                echo "Update is available and will be automatically installed."
-
-
-                # Incrementally update from local_version to remote_version
-                while [ "$(compare_versions "$local_version" "$remote_version")" = -1 ]; do
-                    local_version=$(get_next_version "$local_version")
-                    echo "Updating to version $local_version"
-                    wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
-                done
-                
-            else
-                echo "No update available."
-            fi
-        fi
-    else
-        echo "Autopatch and Autoupdate are both set to 'off'. No updates will be installed automatically."
-    fi
-}
+            # Clean up temporary file
+            os.unlink(temp_file_path)
+        else:
+            print("No update available.")
+    else:
+        print("Autopatch and Autoupdate are both set to 'off'. No updates will be installed automatically.")
 
 # Function to compare two semantic versions
-compare_versions() {
-    local version1=$1
-    local version2=$2
-    local IFS='.'
+def compare_versions(version1, version2):
+    array1 = version1.split(".")
+    array2 = version2.split(".")
 
-    local array1=($version1)
-    local array2=($version2)
+    for i in range(len(array1)):
+        if int(array1[i]) > int(array2[i]):
+            return 1  # version1 > version2
+        elif int(array1[i]) < int(array2[i]):
+            return -1  # version1 < version2
 
-    for ((i = 0; i < ${#array1[@]}; i++)); do
-        if ((array1[i] > array2[i])); then
-            echo 1  # version1 > version2
-            return
-        elif ((array1[i] < array2[i])); then
-            echo -1  # version1 < version2
-            return
-        fi
-    done
-
-    echo 0  # version1 == version2
-}
+    return 0  # version1 == version2
 
 # Function to get the next semantic version
-get_next_version() {
-    local version=$1
-    local IFS='.'
+def get_next_version(version):
+    array = version.split(".")
+    array[-1] = str(int(array[-1]) + 1)
+    return ".".join(array)
 
-    local array=($version)
+# Main function
+def main(args):
+    check_update()
 
-    # Increment the last segment
-    array[${#array[@]}-1]=$((array[${#array[@]}-1] + 1))
-
-    echo "${array[*]}"
-}
-
-# Call the function to check for updates, pass any additional arguments to it
-check_update "$@"
+# Call main function if executed as a script
+if __name__ == "__main__":
+    main(sys.argv[1:])
