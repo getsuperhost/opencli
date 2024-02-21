@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
 # Script Name: install.sh
-# Description: Create cronjobs and configuration files needed for openpanel.
+# Description: Create cronjobs and configuration files needed for OpenCLI.
 # Usage: opencli install
 # Author: Stefan Pejcic
 # Created: 08.10.2023
-# Last Modified: 16.01.2024
+# Last Modified: 21.02.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -57,14 +57,11 @@ crontab "$cron_temp_file"
 # Remove the temporary file
 rm "$cron_temp_file"
 
-# set aliases
-ln -s /usr/local/admin/scripts/version /usr/local/admin/scripts/v
-
 # Make all bash scripts in this directory executable for root only
 chown root:root /usr/local/admin/scripts/*
 
 # Only opencli binary is added to path and is used to call all other scripts
-cp /usr/local/admin/scripts/opencli /usr/local/bin/opencli
+mv /usr/local/admin/scripts/opencli /usr/local/bin/
 chmod +x /usr/local/bin/opencli
 
 # Generate a list of commands for the opencli
