@@ -28,46 +28,49 @@
 # THE SOFTWARE.
 ################################################################################
 
-# imports
 import subprocess
 import json
 import os
 import configparser
+import sys
 
+def main(args):
+    if len(args) > 1 or (args and args[0] != "--json"):
+        print_usage()
+    else:
+        json_output = bool(args and args[0] == "--json")
 
-# Print usage information
+        # DB
+        config_file = "/usr/local/admin/db.cnf"
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        mysql_database = config.get('database', 'name', fallback='panel')
+
+        # Fetch all user data from the users table
+        command = f"mysql --defaults-extra-file={config_file} -D {mysql_database} -e \"SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id;\" | tail -n +2"
+        users_data = subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip()
+        users_list = [line.split('\t') for line in users_data.split('\n') if line.strip()]
+
+        if json_output:
+            # For JSON output without --table option
+            json_output = json.dumps(
+                [{'id': user[0], 'username': user[1], 'email': user[2], 'plan_name': user[3], 'registered_date': user[4]} for user in users_list])
+            print(json_output)
+        else:
+            # For Terminal output without --json option
+            if users_list:
+                for user in users_list:
+                    print('\t'.join(user))
+            else:
+                print("No users.")
+
 def print_usage():
-    print(f"Usage: opencli user-list [--json]")
+    print(f"Usage: {os.path.basename(sys.argv[0])} [--json]")
     exit(1)
 
-# Check command line arguments for --json flag
-json_output = False
-for arg in os.sys.argv[1:]:
-    if arg == "--json":
-        json_output = True
-    else:
-        print_usage()
+if __name__ == "__main__":
+    main(sys.argv[1:])
 
-# DB
-config_file = "/usr/local/admin/db.cnf"
-config = configparser.ConfigParser()
-config.read(config_file)
-mysql_database = config.get('database', 'name', fallback='panel')
 
-# Fetch all user data from the users table
-if json_output:
-    # For JSON output without --table option
-    command = f"mysql --defaults-extra-file={config_file} -D {mysql_database} -e \"SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id;\" | tail -n +2"
-    users_data = subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip()
-    users_list = [line.split('\t') for line in users_data.split('\n')]
-    json_output = json.dumps(
-        [{'id': user[0], 'username': user[1], 'email': user[2], 'plan_name': user[3], 'registered_date': user[4]} for user in users_list])
-    print(json_output)
-else:
-    # For Terminal output with --table option
-    command = f"mysql --defaults-extra-file={config_file} -D {mysql_database} --table -e \"SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id;\""
-    users_data = subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip()
-    if users_data:
-        print(users_data)
-    else:
-        print("No users.")
+
+
