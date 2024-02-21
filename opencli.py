@@ -3,11 +3,11 @@
 import importlib
 import sys
 
-def run_command(module_name, *args):
+def run_command(module_name, args):
     module_name = module_name.replace('-', '.')  # Replace "/" with "." in module_name
     try:
         module = importlib.import_module(module_name)
-        module.main(*args)
+        module.main(args)
     except ImportError:
         print(f"Error: Module '{module_name}' not found.")
     except AttributeError:
@@ -19,4 +19,4 @@ if __name__ == "__main__":
     else:
         command = sys.argv[1]
         arguments = sys.argv[2:]
-        run_command(command, *arguments)
+        run_command(command, arguments)
