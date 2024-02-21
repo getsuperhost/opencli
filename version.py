@@ -1,12 +1,12 @@
-#!/bin/bash
+#!/usr/bin/python3
 ################################################################################
-# Script Name: version.sh
+# Script Name: version.py
 # Description: Displays the current (installed) version of OpenPanel.
 # Usage: opencli version 
 #        opencli v
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 15.11.2023
+# Last Modified: 21.02.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -23,22 +23,24 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLALatest version information not available.
+IM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
-
+import sys
 
 # Check version
-version_check() {
-    if [ -f "/usr/local/panel/version" ]; then
-        local_version=$(cat "/usr/local/panel/version")
-        echo $local_version
-    else
-        echo '{"error": "Local version file not found"}' >&2
-        exit 1
-    fi
-}
+def version_check():
+    version_file_path = "/usr/local/panel/version"
+    try:
+        with open(version_file_path, 'r') as version_file:
+            local_version = version_file.read().strip()
+            print(local_version)
+    except FileNotFoundError:
+        print('{"error": "Local version file not found"}', file=sys.stderr)
+        exit(1)
 
-version_check
+# Call the function
+version_check()
