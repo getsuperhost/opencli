@@ -19,4 +19,8 @@ if __name__ == "__main__":
     else:
         command = sys.argv[1]
         arguments = sys.argv[2:]
-        run_command(command, arguments)
+        if command == 'version' or command == 'v':
+            from version import get_local_version
+            print(get_local_version())
+        else:
+            run_command(command, arguments)
