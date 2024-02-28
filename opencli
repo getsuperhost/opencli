@@ -1,2 +1,10 @@
 #!/bin/bash
-python3 /usr/local/admin/scripts/opencli.py "$@"
+
+# Check if the command being called is "docker"
+if [ "$1" = "docker" ]; then
+    # If the command is "docker", start as bash
+    exec bash /usr/local/admin/scripts/opencli "$@"
+else
+    # If the command is not "docker", start as python3
+    exec python3 /usr/local/admin/scripts/opencli.py "$@"
+fi
