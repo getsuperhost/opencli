@@ -5,7 +5,7 @@
 # Usage: opencli webserver-check_if_file_exists <username> <file_path>
 # Author: Stefan Pejcic
 # Created: 10.10.2023
-# Last Modified: 28.02.2024
+# Last Modified: 15.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -44,12 +44,15 @@ def check_file_exists(username, file_path):
     except subprocess.CalledProcessError:
         print(f"{full_path} does not exist in the container {username}.")
 
-if __name__ == "__main__":
+def main(args):
     # Check if the correct number of arguments is provided
-    if len(sys.argv) != 3:
+    if len(args) != 2:
         print("Usage: opencli webserver-check_if_file_exists <username> <file_path>")
         sys.exit(1)
 
-    username = sys.argv[1]
-    file_path = sys.argv[2]
+    username = args[0]
+    file_path = args[1]
     check_file_exists(username, file_path)
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
