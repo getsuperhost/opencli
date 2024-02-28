@@ -35,6 +35,33 @@ import subprocess
 config_file = "/usr/local/panel/conf/panel.config"
 proxy_conf_file = "/usr/local/panel/templates/vhosts/openpanel_proxy.conf"
 
+
+def main(args):
+    if len(args) < 2 or len(args) > 3:
+        print("Usage: opencli config [get|update] <parameter_name> [new_value]")
+        sys.exit(1)
+
+    command = args[0]
+    param_name = args[1]
+
+    if command == "get":
+        get_config(param_name)
+    elif command == "update":
+        if len(args) != 3:
+            print("Usage: opencli config update <parameter_name> <new_value>")
+            sys.exit(1)
+        new_value = args[2]
+        update_config(param_name, new_value)
+        if param_name == "ssl":
+            update_ssl_config(new_value)
+        elif param_name == "port":
+            update_port_config(new_value)
+        elif param_name == "openpanel_proxy":
+            update_openpanel_proxy_config(new_value)
+    else:
+        print("Invalid command. Usage: opencli config [get|update] <parameter_name> [new_value]")
+        sys.exit(1)
+
 def update_ssl_config(ssl_value):
     try:
         with open(proxy_conf_file, 'r') as f:
@@ -114,31 +141,4 @@ def update_config(param_name, new_value):
     except FileNotFoundError:
         print("Error: File not found.", config_file)
 
-def main(args):
-    if len(args) < 2 or len(args) > 3:
-        print("Usage: opencli config [get|update] <parameter_name> [new_value]")
-        sys.exit(1)
 
-    command = args[0]
-    param_name = args[1]
-
-    if command == "get":
-        get_config(param_name)
-    elif command == "update":
-        if len(args) != 3:
-            print("Usage: opencli config update <parameter_name> <new_value>")
-            sys.exit(1)
-        new_value = args[2]
-        update_config(param_name, new_value)
-        if param_name == "ssl":
-            update_ssl_config(new_value)
-        elif param_name == "port":
-            update_port_config(new_value)
-        elif param_name == "openpanel_proxy":
-            update_openpanel_proxy_config(new_value)
-    else:
-        print("Invalid command. Usage: opencli config [get|update] <parameter_name> [new_value]")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main()
