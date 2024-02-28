@@ -158,7 +158,7 @@ def detect_service_status():
 def add_new_user(username, password):
     password_hash = (
         subprocess.check_output(
-            ["python3", "/usr/local/admin/core/users/hash.py", password]
+            ["python3", "/usr/local/admin/core/users/hash", password]
         )
         .decode()
         .strip()
