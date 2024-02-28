@@ -31,6 +31,16 @@
 import sys
 import subprocess
 
+def main(args):
+    # Check if the correct number of arguments is provided
+    if len(args) != 2:
+        print("Usage: opencli webserver-check_if_file_exists <username> <file_path>")
+        sys.exit(1)
+
+    username = args[0]
+    file_path = args[1]
+    check_file_exists(username, file_path)
+
 def check_file_exists(username, file_path):
     # Construct the full path to the file inside the container
     full_path = f"/home/{username}/{file_path}"
@@ -43,16 +53,3 @@ def check_file_exists(username, file_path):
         print(f"{full_path} exists in the container {username}.")
     except subprocess.CalledProcessError:
         print(f"{full_path} does not exist in the container {username}.")
-
-def main(args):
-    # Check if the correct number of arguments is provided
-    if len(args) != 2:
-        print("Usage: opencli webserver-check_if_file_exists <username> <file_path>")
-        sys.exit(1)
-
-    username = args[0]
-    file_path = args[1]
-    check_file_exists(username, file_path)
-
-if __name__ == "__main__":
-    main(sys.argv[1:])
