@@ -35,6 +35,34 @@ import os
 import random
 import string
 import configparser
+import re
+
+forbidden_usernames = ["test", "restart", "reboot", "shutdown", "exec", "root", "admin", "ftp", "lsws", "litespeed", "1000", "vsftpd", "apache2", "apache", "nginx", "php", "mysql", "mysqld", "www-data", "openpanel"]
+
+def is_username_forbidden(check_username):
+    # Check if the username is a single word
+    if re.search(r'\s', check_username):
+        return True  # Username contains spaces, forbidden
+
+    # Check if the username contains hyphens or underscores, also don't allow usernames that start with storage_file_
+    if re.search(r'[-_]|^storage_file_', check_username):
+        return True  # Username contains hyphens or underscores, forbidden
+
+    # Check if the username contains only letters and numbers
+    if not re.match(r'^[a-zA-Z0-9]+$', check_username):
+        return True  # Username contains characters other than letters and numbers, forbidden
+
+    # Check if the username length is within the allowed range
+    username_length = len(check_username)
+    if username_length < 3 or username_length > 20:
+        return True  # Username length is outside the allowed range, forbidden
+
+    # Check against the forbidden usernames
+    if check_username.lower() in forbidden_usernames:
+        return True  # Username is forbidden
+
+    return False  # Not forbidden
+
 
 def generate_random_password():
     characters = string.ascii_letters + string.digits
@@ -73,10 +101,11 @@ def main(args):
         password = args[1]
         email = args[2]
         plan_id = args[3]
-
         # Check if DEBUG flag is set
         debug = "--debug" in args
-
+        if is_username_forbidden(username):
+            print(f"Error: The username '{username}' is not allowed. Ensure it is a single word with no hyphens or underscores, contains only letters and numbers, and has a length between 3 and 20 characters.")
+            exit(1)    
         # DB
         config_file = "/usr/local/admin/db.cnf"
         config = configparser.ConfigParser()
@@ -185,15 +214,14 @@ def main(args):
                          "-v", f"/home/{username}:/home/{username}",
                          "--restart", "unless-stopped",
                          "--hostname", os.uname().nodename, docker_image]
-    print(docker_run_command)
 
     if debug:
         print(" ".join(docker_run_command))
+        subprocess.run(docker_run_command)
     else:
         subprocess.run(docker_run_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    if not debug:
-        container_status = subprocess.run(["docker", "inspect", "-f", "{{.State.Status}}", username], capture_output=True, text=True).stdout.strip()
+    container_status = subprocess.run(["docker", "inspect", "-f", "{{.State.Status}}", username], capture_output=True, text=True).stdout.strip()
 
     if container_status != "running":
         print("Error: Container status is not 'running'. Cleaning up...")
@@ -214,8 +242,6 @@ def main(args):
         text=True
     ).stdout.strip()
 
-        # Check if DEBUG is true before printing private ip
-    print("IP ADDRESS:", ip_address)
 
     # Open ports on firewall
     container_ports = ["22", "3306", "7681", "8080"]
@@ -230,10 +256,8 @@ def main(args):
                 else:
                     print(f"Port {port} not found in container {username}")
             else:
-                print("PRE ELSE PRVI")
                 if host_port:
-                    print(host_port)
-                    subprocess.run(["ufw", "allow", f"{host_port}/tcp", "comment", username])
+                    subprocess.run(["ufw", "allow", f"{host_port}/tcp", "comment", username], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     ports_opened = 1
 
 
@@ -311,23 +335,24 @@ def main(args):
             f.write(f"default_php_version: {default_php_version}\n")
         subprocess.run(["opencli", "php-get_available_php_versions", username], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         # Insert data into MySQL database
-        mysql_query = f"INSERT INTO users (username, password, email, plan_id) VALUES ('{username}', '{hashed_password}', '{email}', '{plan_id}');"
+        
+        
+        
+    mysql_query = f"INSERT INTO users (username, password, email, plan_id) VALUES ('{username}', '{hashed_password}', '{email}', '{plan_id}');"
 
-        # Escape the '$' character in the MySQL query string
-        mysql_query = mysql_query.replace('$', '\$')
+    # Escape the '$' character in the MySQL query string
+    mysql_query = mysql_query.replace('$', '\$')
 
-        result = subprocess.run(
-            f"mysql --defaults-extra-file={config_file} -D {mysql_database} -e \"{mysql_query}\"", 
-            shell=True, 
-            capture_output=True, 
-            text=True,
-        )
-        print(mysql_query)
-        if result.returncode == 0:
-            print("Data insertion into MySQL database was successful.")
-        else:
+    result = subprocess.run(
+        f"mysql --defaults-extra-file={config_file} -D {mysql_database} -e \"{mysql_query}\"", 
+        shell=True, 
+        capture_output=True, 
+        text=True,
+    )
+    if result.returncode == 0:
+            print(f"Successfully added user {username} password: {password}")
+    else:
             print("Error: Data insertion into MySQL database failed.")
-        print(f"Successfully added user {username} password: {password}")
+        
     
-
     return 0
