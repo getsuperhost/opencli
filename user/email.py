@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env python3
 ################################################################################
-# Script Name: user/change_email.sh
+# Script Name: user/email.py
 # Description: Change email for user
 # Usage: opencli user-email <USERNAME> <NEW_EMAIL>
 # Docs: https://docs.openpanel.co/docs/admin/scripts/
@@ -28,36 +28,38 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
-# Source the database connection script
-source /usr/local/admin/scripts/db.sh
+import subprocess
+import sys
+import configparser
+
+# Configuration file
+config_file = "/usr/local/admin/db.cnf"
+config = configparser.ConfigParser()
+config.read(config_file)
+mysql_database = config.get('database', 'name', fallback='panel')
 
 # Function to change email in the database
-change_email_in_db() {
-    USERNAME=$1
-    NEW_EMAIL=$2
-    
-    # Update the username in the database with the suspended prefix
-    mysql_query="UPDATE users SET email='$NEW_EMAIL' WHERE username='$USERNAME';"
-    
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
-}
+def change_email_in_db(username, new_email):
+    mysql_query = f"UPDATE users SET email='{new_email}' WHERE username='{username}';"
+    subprocess.run(["mysql", "--defaults-extra-file=" + config_file, "-D", mysql_database, "-e", mysql_query])
 
-# Check if the correct number of arguments is provided
-if [ "$#" -ne 2 ]; then
-  echo "Usage: $0 <USERNAME> <NEW_EMAIL>"
-  exit 1
-fi
+# Main function
+def main(args):
+    # Check if the correct number of arguments is provided
+    if len(args) != 2:
+        print("Usage: {} <USERNAME> <NEW_EMAIL>".format(args[0]))
+        sys.exit(1)
 
-# Extract arguments
-USERNAME=$1
-NEW_EMAIL=$2
+    # Extract arguments
+    username = args[0]
+    new_email = args[1]
 
-# Call the function to change email in the database
-change_email_in_db "$USERNAME" "$NEW_EMAIL"
+    # Call the function to change email in the database
+    change_email_in_db(username, new_email)
 
-# Check if the function executed successfully
-if [ $? -eq 0 ]; then
-  echo "Email for user $USERNAME updated to $NEW_EMAIL."
-else
-  echo "Error: Failed to update email for user $USERNAME."
-fi
+    # Check if the function executed successfully
+    mysql_query = f"UPDATE users SET email='{new_email}' WHERE username='{username}';"
+    if subprocess.run(["mysql", "--defaults-extra-file=" + config_file, "-D", mysql_database, "-e", mysql_query]).returncode == 0:
+        print("Email for user {} updated to {}.".format(username, new_email))
+    else:
+        print("Error: Failed to update email for user {}.".format(username))
