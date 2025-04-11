@@ -1,0 +1,27 @@
+{
+    "php.validate.executablePath": "/usr/bin/php",
+    "editor.formatOnSave": true,
+    "files.associations": {
+        "*.sh": "shellscript"
+    },
+    "[json]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "editor.codeLens": true,
+    "editor.errorLens.enabled": true,
+    "[shellscript]": {
+        "editor.defaultFormatter": "foxundermoon.shell-format",
+        "editor.formatOnSave": true
+    },
+    "editor.quickSuggestions": {
+        "other": true,
+        "comments": false,
+        "strings": true
+    },
+    "editor.tabSize": 4
+}

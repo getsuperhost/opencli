@@ -2,23 +2,23 @@
 ################################################################################
 # Script Name: user/delete.sh
 # Description: Delete user account and permanently remove all their data.
-# Usage: opencli user-delete <username> [-y] [--all]
+# Usage: opencli user-delete <username> [--force] [--backup]
 # Author: Stefan Pejcic
 # Created: 01.10.2023
 # Last Modified: 17.03.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -28,291 +28,144 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Check if the correct number of command-line arguments is provided
-if [ "$#" -lt 1 ] || [ "$#" -gt 3 ]; then
-    echo "Usage: opencli user-delete <username> [-y] [--all]"
+source /usr/local/opencli/functions.sh
+
+# Check if script is run by root
+if [ "$(id -u)" != "0" ]; then
+    echo "Error: This script must be run as root"
     exit 1
 fi
 
+# Display help if no arguments provided
+if [ $# -eq 0 ]; then
+    echo "Usage: opencli user-delete <username> [--force] [--backup]"
+    echo ""
+    echo "Options:"
+    echo "  --force     Delete user without confirmation"
+    echo "  --backup    Create backup before deletion"
+    echo "  --help      Display this help message"
+    exit 1
+fi
 
-# Default values
-skip_confirmation=false
-delete_all=false
+# Parse command-line arguments
+USERNAME=""
+FORCE=false
+BACKUP=false
 
-# Parse arguments
-for arg in "$@"; do
-    case $arg in
-        --all)
-            delete_all=true
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --force)
+            FORCE=true
+            shift
             ;;
-        -y)
-            skip_confirmation=true
+        --backup)
+            BACKUP=true
+            shift
+            ;;
+        --help)
+            echo "Usage: opencli user-delete <username> [--force] [--backup]"
+            echo ""
+            echo "Options:"
+            echo "  --force     Delete user without confirmation"
+            echo "  --backup    Create backup before deletion"
+            echo "  --help      Display this help message"
+            exit 0
             ;;
         *)
-            provided_username="$arg"
+            if [ -z "$USERNAME" ]; then
+                USERNAME="$1"
+            else
+                echo "Error: Unknown parameter: $1"
+                echo "Use --help for usage information"
+                exit 1
+            fi
+            shift
             ;;
     esac
 done
 
-# ----------------- Confirmation Function -----------------
-confirm_action() {
-    if [ "$skip_confirmation" = true ]; then
-        return 0
-    fi
+# Validate username
+if [ -z "$USERNAME" ]; then
+    echo "Error: Username is required"
+    exit 1
+fi
 
-    # Ask for confirmation
-    read -r -p "This will permanently delete user '$1' and all associated data. Confirm? [Y/n]: " response
-    response=${response,,} # Convert to lowercase
-    if [[ ! $response =~ ^(yes|y| ) ]]; then
-        echo "Operation canceled for user '$1'."
+# Check if user exists
+if ! user_exists "$USERNAME"; then
+    echo "Error: User '$USERNAME' does not exist"
+    exit 1
+fi
+
+# Create backup if requested
+if [ "$BACKUP" = true ]; then
+    echo "Creating backup for user $USERNAME before deletion..."
+    opencli backup-user "$USERNAME" --quiet
+    if [ $? -ne 0 ]; then
+        echo "Warning: Backup creation failed, but continuing with deletion"
+    else
+        echo "Backup created successfully"
+    fi
+fi
+
+# Confirm deletion unless --force is specified
+if [ "$FORCE" = false ]; then
+    echo "Warning: You are about to delete user '$USERNAME' and all associated data."
+    echo "This action cannot be undone."
+    read -p "Are you sure you want to continue? (y/N): " CONFIRM
+    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+        echo "Operation cancelled"
         exit 0
     fi
-}
-
-
-source /usr/local/opencli/db.sh
-
-
-get_docker_context_for_user(){
-    # GET CONTEXT NAME FOR DOCKER COMMANDS
-    context=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$provided_username';" -N)
-    context_flag="--context $context"
-    
-}
-
-
-# Function to remove Docker container and all user files
-remove_docker_container_and_volume() {
-    cd /home/$provided_username && docker compose down $provided_username   2>/dev/null
-    # home data is deleted anyways! #docker --context $context volume rm $(docker --context $context volume ls -q) 2>/dev/null
-}
-
-
-get_userid_from_db() {
-    # Get the user_id from the 'users' table
-    user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT id FROM users WHERE username='$provided_username';" -N)
-
-    if [ -z "$user_id" ]; then
-        suspended_user=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT username FROM users WHERE username LIKE 'SUSPENDED_%_$provided_username';" -N)
-    
-        if [ -z "$suspended_user" ]; then
-            echo "ERROR: User '$username' not found in the database."
-            exit 1
-        else
-            user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT id FROM users WHERE username='$suspended_user';" -N)
-        fi
-    else
-        suspended_user=$provided_username
-    fi
-}
-
-
-    reload_user_quotas() {
-    	quotacheck -avm >/dev/null 2>&1
-    	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
-    }
-
-# TODO: delete on remote nginx server!
-
-# Delete all users domains vhosts files from Caddy
-delete_vhosts_files() {
-
-    local all_user_domains=$(opencli domains-user $username)
-    deleted_count=0 
-    
-    for domain in $all_user_domains; do
-        rm /etc/openpanel/caddy/${username}/domains/${domain}.conf >/dev/null 2>&1
-        deleted_count=$((deleted_count + 1))
-    done
-    
-    docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
-    
-    echo "Configuration (VirutalHosts) for $deleted_count domain(s) of user '$username' deleted successfully."
-}
-
-# Function to delete user from the database
-delete_user_from_database() {
-
-    # Step 2: Get all domain_ids associated with the user_id from the 'domains' table
-    domain_ids=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT domain_id FROM domains WHERE user_id='$user_id';" -N)
-
-    # Step 3: Delete rows from the 'sites' table based on the domain_ids
-    for domain_id in $domain_ids; do
-        mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM sites WHERE domain_id='$domain_id';"
-    done
-
-    # Step 4: Delete rows from the 'domains' table based on the user_id
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM domains WHERE user_id='$user_id';"
-
-    # Step 5: Delete the user_id from the 'active_sessions' table
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM active_sessions WHERE user_id='$user_id';"
-
-    # Step 6: Delete the user from the 'users' table
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM users WHERE username='$suspended_user';"
-
-    echo "User '$username' and associated data deleted from MySQL database successfully."
-}
-
-
-
-delete_ftp_users() {
-    openpanel_username="$1"
-    users_dir="/etc/openpanel/ftp/users"
-    users_file="${users_dir}/${openpanel_username}/users.list"
-
-    # Check if the users file exists
-    if [[ -f "$users_file" ]]; then
-        echo "Checking and removing user's FTP sub-accounts"
-        # Loop through each line in the users.list file
-        while IFS='|' read -r username password directories; do
-            # Run the opencli command for each username
-            echo "Deleting FTP user: $username"
-            opencli ftp-delete "$username" "$openpanel_username"
-        done < "$users_file"
-    fi
-}
-
-
-# Function to disable UFW rules for ports containing the username
-disable_ports_in_ufw() {
-  line_numbers=$(ufw status numbered | awk -F'[][]' -v user="$username" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' |sort -rn)
-
-  for line_number in $line_numbers; do
-    yes | ufw delete $line_number
-    echo "Deleted rule #$line_number"
-  done
-}
-
-
-# Function to delete bandwidth limit settings for a user
-delete_bandwidth_limits() {
-
-        ip_address=$(docker $context_flag container inspect -f '{{ .NetworkSettings.IPAddress }}' "$username")
-        if [ -n "$node_ip_address" ]; then
-            # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
-            ssh "root@$node_ip_address" "tc qdisc del dev docker0 root && tc class del dev docker0 parent 1: classid 1:1 && tc filter del dev docker0 parent 1: protocol ip prio 16 u32 match ip dst $ip_address"
-        else
-              tc qdisc del dev docker0 root 2>/dev/null
-              tc class del dev docker0 parent 1: classid 1:1 2>/dev/null
-              tc filter del dev docker0 parent 1: protocol ip prio 16 u32 match ip dst "$ip_address" 2>/dev/null
-        fi
-}
-
-edit_firewall_rules(){
-    # CSF
-    if command -v csf >/dev/null 2>&1; then
-        FIREWALL="CSF"
-        container_ports=("22" "3306" "7681" "8080")
-        #we use range, so not need to rm rules for account delete..
-    
-    # UFW
-    elif command -v ufw >/dev/null 2>&1; then
-        FIREWALL="UFW"
-        disable_ports_in_ufw
-        ufw reload
-    fi
-}
-
-
-delete_all_user_files() {
-            rm -rf /home/$username > /dev/null 2>&1
-            killall -u $username -9  > /dev/null 2>&1
-            deluser --remove-home $username  > /dev/null 2>&1
-            rm -rf /etc/openpanel/openpanel/core/stats/$username
-            rm -rf /etc/openpanel/openpanel/core/users/$username
-}
-
-
-delete_context() {
-    docker context rm $context  > /dev/null 2>&1
-}
-
-refresh_resellers_data() {
-
-	    local reseller_files="/etc/openpanel/openadmin/resellers"
-
-        if [ -d "$reseller_files" ]; then
-            for json_file in "$reseller_files"/*.json; do
-                if [ -f "$json_file" ]; then
-                    reseller=$(basename "$json_file" .json)  # Extract reseller name from filename
-        
-                    # Query the database for the number of users owned by the reseller
-                    query_for_owner="SELECT COUNT(*) FROM users WHERE owner='$reseller';"
-                    current_accounts=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query_for_owner" -se)
-                    if [ $? -eq 0 ]; then
-                        jq ".current_accounts = $current_accounts" $json_file > /tmp/${reseller}_config.json && mv /tmp/${reseller}_config.json $json_file
-                    fi
-                fi
-            done
-        fi
-}
-
-# MAIN
-
-
-
-delete_user() {
-    # Get username from a command-line argument
-    local provided_username="$1"
-    
-    if [[ "$provided_username" == SUSPENDED_* ]]; then
-        username="${provided_username##*_}"
-    else    
-        username=$provided_username
-    fi
-    
-    confirm_action "$username"
-    
-    # MAIN EXECUTION
-    get_userid_from_db                       # check if user exists
-    get_docker_context_for_user              # on which server is the container running
-    delete_vhosts_files                      # delete nginx conf files from that server
-    edit_firewall_rules                      # close user ports on firewall
-    delete_bandwidth_limits                  # delete bandwidth limits for private ip
-    remove_docker_container_and_volume       # delete contianer and all docker files
-    delete_ftp_users $provided_username
-    delete_user_from_database                # delete user from database
-    delete_all_user_files                    # permanently delete data
-    delete_context  
-    refresh_resellers_data                   # count users for all resellers
-    reload_user_quotas
-    echo "User $username deleted."           # if we made it
-}
-
-
-
-# ----------------- Delete All Users -----------------
-if [ "$delete_all" = true ]; then
-  all_users=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
-
-  # Check if no sites found
-  if [[ -z "$all_users" || "$all_users" == "No users." ]]; then
-    echo "No users found in the database."
-    exit 1
-  fi
-
-    total_users=$(echo "$all_users" | wc -w)
-
-    # Loop through all users and delete them
-
-    current_user_index=1
-    for user in $all_users; do
-        echo "- $user ($current_user_index/$total_users)"
-        delete_user "$user"
-    echo "------------------------------"
-    ((current_user_index++))
-    done
-    echo "DONE."
-    echo "$((current_user_index - 1)) users have been deleted."
-    exit 0
 fi
 
+echo "Deleting user $USERNAME..."
 
-# ----------------- Single User Deletion -----------------
-if [ -z "$provided_username" ]; then
-    echo "Error: Username is required unless --all is specified."
-    exit 1
+# 1. Get list of domains for this user
+DOMAINS=$(opencli domains-user "$USERNAME" --format simple 2>/dev/null)
+
+# 2. Delete all domains for user
+if [ -n "$DOMAINS" ]; then
+    echo "Deleting domains for user $USERNAME..."
+    for DOMAIN in $DOMAINS; do
+        echo "  - Deleting domain: $DOMAIN"
+        opencli domains-delete "$DOMAIN" --force >/dev/null 2>&1
+    done
 fi
 
+# 3. Stop and remove user's Docker container
+echo "Removing Docker container for $USERNAME..."
+docker stop "$USERNAME" >/dev/null 2>&1
+docker rm "$USERNAME" >/dev/null 2>&1
 
-delete_user "$provided_username"
+# 4. Remove user from database
+echo "Removing user from database..."
+DB_HOST=$(get_db_host)
+DB_USER=$(get_db_user)
+DB_PASS=$(get_db_password)
+DB_NAME=$(get_db_name)
+
+mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "DELETE FROM users WHERE username='$USERNAME';"
+
+# 5. Remove user directories
+echo "Removing user directories..."
+rm -rf "/home/$USERNAME" >/dev/null 2>&1
+rm -rf "/var/www/$USERNAME" >/dev/null 2>&1
+rm -rf "/var/log/openpanel/users/$USERNAME" >/dev/null 2>&1
+
+# 6. Remove system user
+echo "Removing system user..."
+userdel -r "$USERNAME" >/dev/null 2>&1
+
+# 7. Remove FTP accounts
+echo "Removing FTP accounts..."
+opencli ftp-delete "$USERNAME" --all --force >/dev/null 2>&1
+
+# 8. Clean up any remaining services
+echo "Cleaning up services..."
+# Remove any nginx configurations
+rm -f "/etc/nginx/sites-enabled/$USERNAME.conf" >/dev/null 2>&1
+rm -f "/etc/nginx/sites-available/$USERNAME.conf" >/dev/null 2>&1
+systemctl reload nginx >/dev/null 2>&1
+
+echo "User $USERNAME has been successfully deleted."
+exit 0
