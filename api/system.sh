@@ -139,6 +139,170 @@ elif [[ "$request_uri" =~ /api/v1/system/uninstall/status/ ]]; then
 		send_error_response 405 "Method not allowed"
 	fi
 
+elif [[ "$request_uri" = "/api/v1/system/status" ]]; then
+	if [ "$request_method" = "GET" ]; then
+		# Get system status information
+
+		# CPU usage
+		cpu_usage=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}')
+
+		# Memory usage
+		mem_info=$(free -m)
+		mem_total=$(echo "$mem_info" | awk '/Mem:/ {print $2}')
+		mem_used=$(echo "$mem_info" | awk '/Mem:/ {print $3}')
+		mem_percentage=$((mem_used * 100 / mem_total))
+
+		# Disk usage
+		disk_info=$(df -h --output=used,avail,pcent / | tail -n1)
+		disk_used=$(echo "$disk_info" | awk '{print $1}')
+		disk_avail=$(echo "$disk_info" | awk '{print $2}')
+		disk_percentage=$(echo "$disk_info" | awk '{print $3}' | tr -d '%')
+
+		# Service status
+		openpanel_status="running"
+		docker_ps=$(docker ps -f name=openpanel_openpanel --format '{{.Status}}')
+		if [ -z "$docker_ps" ]; then
+			openpanel_status="stopped"
+		fi
+
+		admin_status="running"
+		systemctl is-active --quiet admin || admin_status="stopped"
+
+		mysql_status="running"
+		docker_ps=$(docker ps -f name=openpanel_mysql --format '{{.Status}}')
+		if [ -z "$docker_ps" ]; then
+			mysql_status="stopped"
+		fi
+
+		nginx_status="running"
+		systemctl is-active --quiet nginx || nginx_status="stopped"
+
+		# OpenCLI version
+		opencli_version=$(opencli --version)
+
+		# System uptime
+		uptime_info=$(uptime -p | sed 's/^up //')
+
+		# Format response
+		response="{
+			\"status\": \"ok\",
+			\"cpu\": {
+				\"usage_percentage\": $cpu_usage
+			},
+			\"memory\": {
+				\"total\": \"$mem_total MB\",
+				\"used\": \"$mem_used MB\",
+				\"usage_percentage\": $mem_percentage
+			},
+			\"disk\": {
+				\"used\": \"$disk_used\",
+				\"available\": \"$disk_avail\",
+				\"usage_percentage\": $disk_percentage
+			},
+			\"services\": {
+				\"openpanel\": \"$openpanel_status\",
+				\"admin\": \"$admin_status\",
+				\"mysql\": \"$mysql_status\",
+				\"nginx\": \"$nginx_status\"
+			},
+			\"version\": \"$opencli_version\",
+			\"uptime\": \"$uptime_info\"
+		}"
+
+		send_json_response "$response"
+	else
+		send_error_response 405 "Method not allowed"
+	fi
+
+elif [[ "$request_uri" = "/api/v1/system/services" ]]; then
+	if [ "$request_method" = "POST" ]; then
+		# Control services
+
+		# Read request body
+		read -r request_body
+
+		# Parse JSON request body
+		service_name=$(echo "$request_body" | grep -o '"service":[^,}]*' | cut -d'"' -f4)
+		action=$(echo "$request_body" | grep -o '"action":[^,}]*' | cut -d'"' -f4)
+
+		# Validate inputs
+		if [ -z "$service_name" ] || [ -z "$action" ]; then
+			send_error_response 400 "Missing required parameters: service and action"
+			exit 1
+		fi
+
+		# Validate action
+		if ! [[ "$action" =~ ^(start|stop|restart)$ ]]; then
+			send_error_response 400 "Invalid action: must be start, stop, or restart"
+			exit 1
+		fi
+
+		# Handle different services
+		case "$service_name" in
+			openpanel)
+				if [ "$action" = "start" ]; then
+					cd /root && docker compose up -d openpanel
+				elif [ "$action" = "stop" ]; then
+					cd /root && docker compose stop openpanel
+				else
+					cd /root && docker compose restart openpanel
+				fi
+				;;
+			admin)
+				if [ "$action" = "start" ]; then
+					systemctl start admin
+				elif [ "$action" = "stop" ]; then
+					systemctl stop admin
+				else
+					systemctl restart admin
+				fi
+				;;
+			mysql)
+				if [ "$action" = "start" ]; then
+					cd /root && docker compose up -d mysql
+				elif [ "$action" = "stop" ]; then
+					cd /root && docker compose stop mysql
+				else
+					cd /root && docker compose restart mysql
+				fi
+				;;
+			nginx)
+				if [ "$action" = "start" ]; then
+					systemctl start nginx
+				elif [ "$action" = "stop" ]; then
+					systemctl stop nginx
+				else
+					systemctl restart nginx
+				fi
+				;;
+			*)
+				send_error_response 400 "Invalid service name"
+				exit 1
+				;;
+		esac
+
+		# Check if operation was successful
+		case "$service_name" in
+			openpanel|mysql)
+				docker_ps=$(docker ps -f name=openpanel_${service_name} --format '{{.Status}}')
+				if [ -z "$docker_ps" ] && [ "$action" != "stop" ]; then
+					send_error_response 500 "Failed to $action $service_name service"
+					exit 1
+				fi
+				;;
+			admin|nginx)
+				if ! systemctl is-active --quiet $service_name && [ "$action" != "stop" ]; then
+					send_error_response 500 "Failed to $action $service_name service"
+					exit 1
+				fi
+				;;
+		esac
+
+		send_json_response "{\"success\": true, \"message\": \"Service $service_name $action operation completed successfully\"}"
+	else
+		send_error_response 405 "Method not allowed"
+	fi
+
 else
 	send_error_response 404 "Endpoint not found"
 fi

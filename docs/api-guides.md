@@ -140,6 +140,55 @@ for plan_json in "${PLANS[@]}"; do
 done
 ```
 
+### System Monitoring and Management
+
+You can build monitoring dashboards and automate system management:
+
+```bash
+#!/bin/bash
+
+# Configuration
+API_TOKEN="your_api_token"
+API_BASE="https://panel.example.com/api/v1"
+
+# Get system status
+SYSTEM_STATUS=$(curl -s -X GET "$API_BASE/system/status" \
+  -H "Authorization: Bearer $API_TOKEN")
+
+# Extract CPU and memory usage
+CPU_USAGE=$(echo $SYSTEM_STATUS | jq '.cpu.usage_percentage')
+MEM_USAGE=$(echo $SYSTEM_STATUS | jq '.memory.usage_percentage')
+DISK_USAGE=$(echo $SYSTEM_STATUS | jq '.disk.usage_percentage')
+
+echo "System Status:"
+echo "CPU: $CPU_USAGE%"
+echo "Memory: $MEM_USAGE%"
+echo "Disk: $DISK_USAGE%"
+
+# Check if any service is stopped
+OPENPANEL_STATUS=$(echo $SYSTEM_STATUS | jq -r '.services.openpanel')
+ADMIN_STATUS=$(echo $SYSTEM_STATUS | jq -r '.services.admin')
+MYSQL_STATUS=$(echo $SYSTEM_STATUS | jq -r '.services.mysql')
+NGINX_STATUS=$(echo $SYSTEM_STATUS | jq -r '.services.nginx')
+
+# Restart any stopped service
+if [ "$OPENPANEL_STATUS" = "stopped" ]; then
+  echo "OpenPanel service is stopped. Restarting..."
+  curl -s -X POST "$API_BASE/system/services" \
+    -H "Authorization: Bearer $API_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"service":"openpanel","action":"restart"}'
+fi
+
+if [ "$ADMIN_STATUS" = "stopped" ]; then
+  echo "Admin service is stopped. Restarting..."
+  curl -s -X POST "$API_BASE/system/services" \
+    -H "Authorization: Bearer $API_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"service":"admin","action":"restart"}'
+fi
+```
+
 ## API Request/Response Examples
 
 ### List Domains
@@ -215,6 +264,66 @@ Response:
   "success": true,
   "message": "Backup for user client1 has been initiated",
   "backup_id": "backup_client1_20230615_143322"
+}
+```
+
+### Check System Status
+
+Request:
+```
+GET /api/v1/system/status HTTP/1.1
+Host: panel.example.com
+Authorization: Bearer your_api_token
+```
+
+Response:
+```json
+{
+  "status": "ok",
+  "cpu": {
+    "usage_percentage": 24.5
+  },
+  "memory": {
+    "total": "16384 MB",
+    "used": "8192 MB",
+    "usage_percentage": 50
+  },
+  "disk": {
+    "used": "46080 MB",
+    "available": "56320 MB",
+    "usage_percentage": 45
+  },
+  "services": {
+    "openpanel": "running",
+    "admin": "running",
+    "mysql": "running",
+    "nginx": "running"
+  },
+  "version": "1.2.3",
+  "uptime": "2 days, 5 hours, 30 minutes"
+}
+```
+
+### Restart a Service
+
+Request:
+```
+POST /api/v1/system/services HTTP/1.1
+Host: panel.example.com
+Authorization: Bearer your_api_token
+Content-Type: application/json
+
+{
+  "service": "openpanel",
+  "action": "restart"
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "message": "Service openpanel restart operation completed successfully"
 }
 ```
 

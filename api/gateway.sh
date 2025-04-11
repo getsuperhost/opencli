@@ -54,6 +54,9 @@ elif [[ "$request_uri" =~ ^/api/v1/php/(versions|install)$ ]]; then
 elif [[ "$request_uri" =~ ^/api/v1/backups(/.*)?$ ]]; then
 	# Route to backups API handler
 	bash /usr/local/opencli/api/backups.sh
+elif [[ "$request_uri" =~ ^/api/v1/system/(uninstall(/status/[^/]+)?|status|services)$ ]]; then
+	# Route to system API handler
+	bash /usr/local/opencli/api/system.sh
 else
 	# Handle unknown endpoints
 	echo ""

@@ -494,6 +494,112 @@ POST /api/v1/backups
 }
 ```
 
+## System API
+
+### Get system status
+
+```
+GET /api/v1/system/status
+```
+
+**Example Response:**
+
+```json
+{
+  "status": "ok",
+  "cpu": {
+    "usage_percentage": 24.5
+  },
+  "memory": {
+    "total": "16 GB",
+    "used": "8 GB",
+    "usage_percentage": 50
+  },
+  "disk": {
+    "used": "45 GB",
+    "available": "55 GB",
+    "usage_percentage": 45
+  },
+  "services": {
+    "openpanel": "running",
+    "admin": "running",
+    "mysql": "running",
+    "nginx": "running"
+  },
+  "version": "1.2.3",
+  "uptime": "2 days, 5 hours, 30 minutes"
+}
+```
+
+### Control system services
+
+```
+POST /api/v1/system/services
+```
+
+**Request Body:**
+
+```json
+{
+  "service": "openpanel",
+  "action": "restart"
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "success": true,
+  "message": "Service openpanel restart operation completed successfully"
+}
+```
+
+### Initiate uninstall process
+
+```
+POST /api/v1/system/uninstall
+```
+
+**Request Body:**
+
+```json
+{
+  "purge": true,
+  "keep_backups": false
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "success": true,
+  "message": "Uninstallation process has been initiated",
+  "job_id": "uninstall_20230615_143322"
+}
+```
+
+### Check uninstall status
+
+```
+GET /api/v1/system/uninstall/status/{job_id}
+```
+
+**Example Response:**
+
+```json
+{
+  "job_id": "uninstall_20230615_143322",
+  "status": "in_progress",
+  "progress": 65,
+  "message": "Removing OpenCLI files",
+  "completed_steps": ["stop_services", "remove_opencli_files"],
+  "remaining_steps": ["remove_config_files", "cleanup_system"],
+  "error": null
+}
+```
+
 ## Implementation Status
 
 This API documentation describes the planned REST API endpoints. The actual implementation may be in progress. To check which API endpoints are currently available, use:

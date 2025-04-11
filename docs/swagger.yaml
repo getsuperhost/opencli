@@ -889,3 +889,151 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
+  /system/status:
+    get:
+      summary: Get system status information
+      description: Returns system resource usage and service status information
+      responses:
+        "200":
+          description: System status information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, warning, critical]
+                    example: ok
+                  cpu:
+                    type: object
+                    properties:
+                      usage_percentage:
+                        type: number
+                        format: float
+                        example: 24.5
+                  memory:
+                    type: object
+                    properties:
+                      total:
+                        type: string
+                        example: "16384 MB"
+                      used:
+                        type: string
+                        example: "8192 MB"
+                      usage_percentage:
+                        type: number
+                        format: integer
+                        example: 50
+                  disk:
+                    type: object
+                    properties:
+                      used:
+                        type: string
+                        example: "45G"
+                      available:
+                        type: string
+                        example: "55G"
+                      usage_percentage:
+                        type: number
+                        format: integer
+                        example: 45
+                  services:
+                    type: object
+                    properties:
+                      openpanel:
+                        type: string
+                        enum: [running, stopped]
+                        example: running
+                      admin:
+                        type: string
+                        enum: [running, stopped]
+                        example: running
+                      mysql:
+                        type: string
+                        enum: [running, stopped]
+                        example: running
+                      nginx:
+                        type: string
+                        enum: [running, stopped]
+                        example: running
+                  version:
+                    type: string
+                    example: "1.2.3"
+                  uptime:
+                    type: string
+                    example: "2 days, 5 hours, 30 minutes"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden - Admin privileges required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /system/services:
+    post:
+      summary: Control system services
+      description: Start, stop, or restart system services
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                service:
+                  type: string
+                  enum: [openpanel, admin, mysql, nginx]
+                  example: "openpanel"
+                action:
+                  type: string
+                  enum: [start, stop, restart]
+                  example: "restart"
+              required:
+                - service
+                - action
+      responses:
+        "200":
+          description: Service action completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Service openpanel restart operation completed successfully"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden - Admin privileges required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Service operation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
