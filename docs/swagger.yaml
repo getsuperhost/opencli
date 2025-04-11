@@ -778,3 +778,114 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
+  /system/uninstall:
+    post:
+      summary: Initiate uninstall process
+      description: Begins the uninstallation of OpenCLI (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                purge:
+                  type: boolean
+                  default: false
+                  description: Remove all configuration files and user data
+                keep_backups:
+                  type: boolean
+                  default: false
+                  description: Keep backup files (only with purge=true)
+              required: []
+      responses:
+        "200":
+          description: Uninstallation process initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Uninstallation process has been initiated"
+                  job_id:
+                    type: string
+                    example: "uninstall_20230615_143322"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden - Admin privileges required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /system/uninstall/status/{job_id}:
+    get:
+      summary: Check uninstall status
+      description: Checks the status of an uninstallation job
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID of the uninstall job
+      responses:
+        "200":
+          description: Status response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    example: "uninstall_20230615_143322"
+                  status:
+                    type: string
+                    enum: [pending, in_progress, completed, failed]
+                    example: "in_progress"
+                  progress:
+                    type: integer
+                    minimum: 0
+                    maximum: 100
+                    example: 65
+                  message:
+                    type: string
+                    example: "Removing OpenCLI files"
+                  completed_steps:
+                    type: array
+                    items:
+                      type: string
+                    example: ["stop_services", "remove_opencli_files"]
+                  remaining_steps:
+                    type: array
+                    items:
+                      type: string
+                    example: ["remove_config_files", "cleanup_system"]
+                  error:
+                    type: string
+                    nullable: true
+                    example: null
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"

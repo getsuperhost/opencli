@@ -65,6 +65,7 @@ opencli report
 opencli server-ips
 opencli server-logrotate
 opencli server-motd
+opencli uninstall
 opencli update
 opencli user-2fa
 opencli user-add

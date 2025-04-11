@@ -51,6 +51,24 @@ OpenPanel is proud of its modularity, so you can independently update just the O
 cd /usr/local/opencli && git pull
 ```
 
+## Uninstallation
+
+If you need to remove OpenCLI from your system:
+
+```bash
+# Basic uninstall (removes OpenCLI files while preserving configurations)
+opencli uninstall
+
+# Complete uninstall including configurations (except backups)
+opencli uninstall --purge
+
+# Complete uninstall including configurations and backup settings
+opencli uninstall --purge --keep-backups
+
+# Non-interactive uninstall
+opencli uninstall --yes
+```
+
 ## API Access
 
 OpenCLI provides a RESTful API for programmatic access to all functionality:
@@ -157,6 +175,7 @@ OpenCLI includes numerous commands for managing various aspects of your OpenPane
 ### Administration
 - **admin**: Manage admin users
 - **config**: Configure system settings
+- **install**: Install additional OpenCLI components
 - **license**: Manage OpenPanel license
 - **port**: Configure service ports
 - **domain**: Set panel access domain
@@ -165,6 +184,7 @@ OpenCLI includes numerous commands for managing various aspects of your OpenPane
 - **backup-user**: Backup user data
 - **backup-restore_user**: Restore user data
 - **update**: Update OpenPanel
+- **uninstall**: Refer to the [Uninstallation](#uninstallation) section for details on removing OpenCLI from the system.
 - **version**: Show version information
 
 ### API and Documentation
@@ -205,6 +225,9 @@ opencli api-token-generate
 
 # Configure Nginx for API access
 opencli api-nginx-config --install
+
+# Uninstall OpenCLI
+opencli uninstall --purge
 ```
 
 ## License
