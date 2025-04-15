@@ -64,8 +64,7 @@ jobs:
             git remote set-url origin https://x-access-token:${PAT}@github.com/${{ github.repository }}.git
 
             # Pull the latest changes to avoid conflicts
-            git fetch origin main
-            git rebase origin/main
+            git pull --rebase origin main
 
             git add .
             git commit -m "autoupdate date after edit" || exit 0
