@@ -10,17 +10,17 @@ OPENCLI_VERSION="202.502.023"
 # Last Modified: 18.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -30,8 +30,16 @@ OPENCLI_VERSION="202.502.023"
 # THE SOFTWARE.
 ################################################################################
 
-LOG_FILE="/var/log/openpanel/admin/opencli.log" 
+LOG_FILE="/var/log/openpanel/admin/opencli.log"
+LOG_DIR="$(dirname "$LOG_FILE")"
 
+# Create log directory if it doesn't exist
+if [ ! -d "$LOG_DIR" ]; then
+  mkdir -p "$LOG_DIR" 2>/dev/null
+  if [ $? -ne 0 ]; then
+    echo "Warning: Unable to create log directory $LOG_DIR"
+  fi
+fi
 
 about() {
   echo "About:"
@@ -42,16 +50,15 @@ about() {
   echo ""
 }
 
-
 history() {
   if [ ! -f "$LOG_FILE" ]; then
     echo "Warning: log file $LOG_FILE not found."
   else
     echo "Recently used commands:"
-    tail -n 100 "$LOG_FILE" | grep -o 'opencli [^ ]*' | sort | uniq | tail -n 5 | sed 's/^/  /'
+    tail -n 100 "$LOG_FILE" 2>/dev/null | grep -o 'opencli [^ ]*' | sort | uniq | tail -n 5 | sed 's/^/  /' || echo "  No recent commands found"
     echo ""
     echo "Most commonly used commands:"
-    awk -F ' \\| ' '!($2 ~ /^[0-9]+$/) {print "  " $2}' "$LOG_FILE" | sort | uniq | head -n 5
+    awk -F ' \\| ' '!($2 ~ /^[0-9]+$/) {print "  " $2}' "$LOG_FILE" 2>/dev/null | sort | uniq -c | sort -nr | head -n 5 | awk '{$1=""; print "  " substr($0,2)}' || echo "  No command history available"
     echo ""
   fi
 }
@@ -63,9 +70,24 @@ usage() {
   echo "Suggested commands:"
   echo "  opencli faq                       Display frequently asked questions and answers."
   echo "  opencli commands                  List all available OpenCLI commands and their usage."
+  echo "  opencli help                      Display this help message."
   echo ""
 }
 
+log_command() {
+  if [ -w "$LOG_DIR" ] || [ -w "$LOG_FILE" ]; then
+    { echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $binary_name $*" >> "$LOG_FILE"; } 2>/dev/null
+  fi
+}
+
+# scripts dir
+script_dir="/usr/local/opencli"
+
+# Check if the script directory exists
+if [ ! -d "$script_dir" ]; then
+  echo "Error: OpenCLI script directory '$script_dir' not found."
+  exit 1
+fi
 
 # Check if the correct number of arguments is provided
 if [ "$#" -lt 1 ]; then
@@ -75,72 +97,78 @@ if [ "$#" -lt 1 ]; then
   exit 1
 fi
 
-log_command() {
-  { echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $binary_name" >> "$LOG_FILE"; } 2>/dev/null
-}
-
-
-
-
-# scripts dir
-script_dir="/usr/local/opencli"
-
 # path/filename
 binary_name="$1"
 
-# '-v' is alias for '--version'
-if [ "$binary_name" = "-v" ]; then
-  binary_name="--version"
-fi
-
+# Handle common aliases
+case "$binary_name" in
+  "-v"|"--version")
+    echo "$OPENCLI_VERSION"
+    exit 0
+    ;;
+  "help"|"-h"|"--help")
+    usage
+    history
+    about
+    exit 0
+    ;;
+esac
 
 # opencli error ID
 if [ "$binary_name" = "error" ]; then
   shift
-  if [ "$#" -gt 0 ]; then
-    python3 /usr/local/opencli/error.py "$@"
+  log_command "$@"
+  if [ -f "/usr/local/opencli/error.py" ]; then
+    if [ "$#" -gt 0 ]; then
+      python3 /usr/local/opencli/error.py "$@"
+    else
+      python3 /usr/local/opencli/error.py
+    fi
   else
-    python3 /usr/local/opencli/error.py
+    echo "Error: error.py script not found at /usr/local/opencli/error.py"
+    exit 1
   fi
- exit 0
+  exit 0
 fi
-
 
 # LOCALES
 if [ "$binary_name" = "locale" ]; then
   shift
+  log_command "$@"
   if [ "$#" -gt 0 ]; then
     bash <(curl -sSL https://raw.githubusercontent.com/stefanpejcic/openpanel-translations/main/install.sh) "$@"
   else
     bash <(curl -sSL https://raw.githubusercontent.com/stefanpejcic/openpanel-translations/main/install.sh)
   fi
- exit 0
+  exit 0
 fi
 
 # Replace '-' with '/' in the name
 binary_command="${binary_name//-//}"
 binary_path="$script_dir/$binary_command.sh" # add .sh to each command, opencli <1.0 had no .sh
 
+# Special cases for specific commands
 if [ "$binary_name" = "blacklist" ]; then
   binary_path="/usr/ipset-blacklist.sh"
-fi
-
-if [ "$binary_name" = "sentinel" ]; then
+elif [ "$binary_name" = "sentinel" ]; then
   binary_path="/usr/local/admin/service/notifications.sh"
 fi
 
 if [ -f "$binary_path" ]; then
   shift
-  log_command
+  log_command "$@"
 
   if [ "$#" -gt 0 ]; then
     bash "$binary_path" "$@"
   else
     bash "$binary_path"
   fi
+  exit $?
 else
-  echo "Error: Command '$binary_command' not found - file '$binary_path' does not exist."
-  usage
+  echo "Error: Command '$binary_name' not found - file '$binary_path' does not exist."
+  echo "Available commands:"
+  find "$script_dir" -name "*.sh" -type f | sed "s|$script_dir/||" | sed 's|\.sh$||' | sed 's|/|-|g' | sort | sed 's/^/  opencli /'
+  echo ""
   history
   about
   exit 1

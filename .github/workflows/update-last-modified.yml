@@ -55,11 +55,18 @@ jobs:
             sed -i "s/^OPENCLI_VERSION=\"[0-9.]\+\"/OPENCLI_VERSION=\"${VERSION}\"/" opencli
           fi
 
-      - name: Commit and Push Changes
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git add .
-          git commit -m "autoupdate date after edit" || exit 0
-          git push origin HEAD:main
+          - name: Commit and Push Changes
+          env:
+            PAT: ${{ secrets.GH_PAT }}
+          run: |
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git remote set-url origin https://x-access-token:${PAT}@github.com/${{ github.repository }}.git
+
+            # Pull the latest changes to avoid conflicts
+            git fetch origin main
+            git rebase origin/main
+
+            git add .
+            git commit -m "autoupdate date after edit" || exit 0
+            git push origin HEAD:main
