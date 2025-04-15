@@ -58,17 +58,23 @@ jobs:
             sed -i "s/^OPENCLI_VERSION=\"[0-9.]\+\"/OPENCLI_VERSION=\"${VERSION}\"/" opencli
           fi
 
-      - name: Commit and Push Changes
-        env:
-          PAT: ${{ secrets.GH_PAT }}
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${PAT}@github.com/${{ github.repository }}.git
+          - name: Commit and Push Changes
+          env:
+            PAT: ${{ secrets.GH_PAT }}
+          run: |
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git remote set-url origin https://x-access-token:${PAT}@github.com/${{ github.repository }}.git
 
-          # Pull the latest changes to avoid conflicts
-          git pull --rebase origin main
+            # Stash any local changes to avoid conflicts
+            git stash --include-untracked
 
-          git add .
-          git commit -m "autoupdate date after edit" || exit 0
-          git push origin HEAD:main
+            # Pull the latest changes to avoid conflicts
+            git pull --rebase origin main
+
+            # Apply the stashed changes back
+            git stash pop || true
+
+            git add .
+            git commit -m "autoupdate date after edit" || exit 0
+            git push origin HEAD:main
