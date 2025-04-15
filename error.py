@@ -8,15 +8,14 @@ Usage:
   opencli error --list
 """
 
-import subprocess
+import subprocess  # Note: Ensure subprocess usage is secure to avoid potential vulnerabilities.
 import argparse
 import sys
 import re
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
-import tempfile
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Any
 
 # ANSI color codes for terminal output
 class Colors:
