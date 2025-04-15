@@ -66,21 +66,16 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${PAT}@github.com/${{ github.repository }}.git
 
-          # Check for unstaged changes
-          if ! git diff-index --quiet HEAD --; then
-            echo "Unstaged changes detected. Stashing changes."
-            git stash
-          fi
+          # Stash any changes before pulling
+          git stash --include-untracked
 
           # Pull the latest changes
           git pull --rebase origin main
 
-          # Apply stashed changes (if any)
-          if git stash list | grep -q 'stash@{0}'; then
-            echo "Reapplying stashed changes."
-            git stash pop || echo "Conflict detected when applying stashed changes. Please resolve manually."
-          fi
+          # Apply stashed changes
+          git stash pop || true
 
+          # Add, commit, and push changes
           git add .
           git commit -m "autoupdate date after edit" || exit 0
           git push origin HEAD:main
